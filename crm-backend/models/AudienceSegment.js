@@ -1,10 +1,13 @@
 const mongoose = require('mongoose');
 
-const campaignSchema = new mongoose.Schema({
+const audienceSegmentSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    segmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'AudienceSegment', required: true },
-    message: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now }
+    conditions: [String], // Store conditions as strings
+    audienceSize: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('Campaign', campaignSchema);
+
+const AudienceSegment = mongoose.model('AudienceSegment', audienceSegmentSchema);
+
+module.exports = AudienceSegment;

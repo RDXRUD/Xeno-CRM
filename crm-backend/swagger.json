@@ -5,7 +5,7 @@
       "title": "CRM Backend APIs",
       "description": "APIs for data ingestion, audience management, and campaigns."
     },
-    "host": "localhost:5000",
+    "host": "localhost:5001",
     "basePath": "/api",
     "schemes": ["http"],
     "paths": {

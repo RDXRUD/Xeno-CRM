@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
 
-const logSchema = new mongoose.Schema({
-    campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+const communicationLogSchema = new mongoose.Schema({
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
-    status: { type: String, enum: ['SENT', 'FAILED'], default: 'SENT' },
-    createdAt: { type: Date, default: Date.now },
-});
+    message: { type: String, required: true },
+    campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+    status: { type: String, enum: ['PENDING', 'SENT', 'FAILED'], default: 'PENDING' },
+}, { timestamps: true });
 
-module.exports = mongoose.model('CommunicationLog', logSchema);
+const CommunicationLog = mongoose.model('CommunicationLog', communicationLogSchema);
+
+module.exports = CommunicationLog;

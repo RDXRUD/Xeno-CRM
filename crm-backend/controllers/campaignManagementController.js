@@ -1,115 +1,124 @@
-const Campaign = require('../models/Campaign');
+// const express = require('express');
+const AudienceSegment = require('../models/AudienceSegment');
 const Customer = require('../models/Customer');
-const CommunicationLog = require('../models/CommunicationLog');
-const pubSub = require('../utils/pubSub');
 
-// Audience Creation
-exports.createAudience = async (req, res) => {
+// const router = express.Router();
+
+// Create an audience segment
+exports.addAudseg= async (req, res) => {
     try {
-        const { conditions, name } = req.body;
+        const { name, conditions } = req.body;
 
-        let query = {};
+        // Build dynamic query
+        const query = {};
+        console.log(conditions)
         conditions.forEach((condition) => {
-            const field = condition.field;
-            const operator = condition.operator;
-            const value = condition.value;
+            const [field, operator, value] = condition.split(' ');
 
-            switch (operator) {
-                case '>':
-                    query[field] = { $gt: value };
-                    break;
-                case '<':
-                    query[field] = { $lt: value };
-                    break;
-                case '=':
-                    query[field] = value;
-                    break;
-                case '>=':
-                    query[field] = { $gte: value };
-                    break;
-                case '<=':
-                    query[field] = { $lte: value };
-                    break;
-            }
+            if (operator === '>') query[field] = { $gt: parseFloat(value) };
+            else if (operator === '<') query[field] = { $lt: parseFloat(value) };
+            else if (operator === '=') query[field] = value;
         });
 
-        const audience = await Customer.find(query);
-        const campaign = new Campaign({ name, audience });
+        // Get audience size
+        const audienceSize = await Customer.countDocuments(query);
+
+        // Save the segment
+        const segment = new AudienceSegment({ name, conditions, audienceSize });
+        await segment.save();
+        console.log(segment)
+        res.status(201).json({ message: 'Audience segment created', segment });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Get all audience segments
+exports.Audsegs=async (req, res) => {
+    try {
+        const segments = await AudienceSegment.find();
+        res.status(200).json(segments);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+const Campaign = require('../models/Campaign');
+
+// Create a campaign
+exports.addCamp=async (req, res) => {
+    try {
+        const { segmentId, name, audienceSize } = req.body;
+
+        const campaign = new Campaign({
+            segmentId,
+            name,
+            audienceSize
+        });
+
         await campaign.save();
-
-        res.status(201).json({
-            message: 'Audience segment created successfully',
-            audienceSize: audience.length,
-        });
+        res.status(201).json({ message: 'Campaign created successfully', campaign });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
 
-// Campaign History
-exports.getCampaignHistory = async (req, res) => {
+// Get campaign history
+exports.camps=async (req, res) => {
     try {
-        const campaigns = await Campaign.find().sort({ createdAt: -1 });
+        const campaigns = await Campaign.find()
+            .populate('segmentId', 'name conditions') // Populate segment details
+            .sort({ sentAt: -1 }); // Sort by most recent
+
         res.status(200).json(campaigns);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
 
-// Send Messages
-exports.sendMessages = async (req, res) => {
-    try {
-        const { campaignId } = req.body;
-        const campaign = await Campaign.findById(campaignId);
+// const CommunicationLog = require('../models/CommunicationLog');
 
-        if (!campaign) {
-            return res.status(404).json({ error: 'Campaign not found' });
-        }
+// Send messages
+// exports.sendMessage=async (req, res) => {
+//     try {
+//         const { audienceSegmentId, messageTemplate } = req.body;
 
-        campaign.audience.forEach((customer) => {
-            const logEntry = {
-                campaignId: campaign._id,
-                customerId: customer._id,
-                status: Math.random() < 0.9 ? 'SENT' : 'FAILED',
-            };
+//         // Fetch customers in the segment
+//         const segment = await AudienceSegment.findById(audienceSegmentId);
+//         const query = {};
+//         segment.conditions.forEach((condition) => {
+//             const [field, operator, value] = condition.split(' ');
+//             if (operator === '>') query[field] = { $gt: parseFloat(value) };
+//             else if (operator === '<') query[field] = { $lt: parseFloat(value) };
+//             else if (operator === '=') query[field] = value;
+//         });
 
-            // Publish to message broker
-            pubSub.publish('delivery-receipt', logEntry);
-        });
+//         const customers = await Customer.find(query);
 
-        res.status(200).json({ message: 'Messages sent and queued for receipt processing' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
+//         // Send messages and log results
+//         const logs = [];
+//         for (const customer of customers) {
+//             const personalizedMessage = messageTemplate.replace('[Name]', customer.name);
 
+//             const status = Math.random() < 0.9 ? 'SENT' : 'FAILED'; // 90% success rate
 
-// Get all campaigns
-exports.getCampaigns = async (req, res) => {
-    try {
-        const campaigns = await Campaign.find();
-        res.status(200).json(campaigns);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
+//             logs.push(
+//                 new CommunicationLog({
+//                     audienceSegmentId,
+//                     customerId: customer._id,
+//                     message: personalizedMessage,
+//                     status,
+//                 })
+//             );
+//         }
 
-const CommunicationLog = require('../models/CommunicationLog');
-const pubSub = require('../utils/pubSub');
+//         await CommunicationLog.insertMany(logs);
 
-// Handle Delivery Receipts
-pubSub.subscribe('delivery-receipt', async (logEntry) => {
-    try {
-        const communicationLog = new CommunicationLog(logEntry);
-        await communicationLog.save();
-        console.log('Delivery receipt logged:', logEntry);
-    } catch (err) {
-        console.error('Error saving delivery receipt:', err);
-    }
-});
+//         res.status(200).json({ message: 'Messages sent', logs });
+//     } catch (err) {
+//         res.status(500).json({ error: err.message });
+//     }
+// };
 
-// // Handle Delivery Receipts
-// pubSub.subscribe('delivery-receipt', async (logEntry) => {
-//     const communicationLog = new CommunicationLog(logEntry);
-//     await communicationLog.save();
-// });
+// module.exports = router;
